@@ -22,7 +22,7 @@ export class AppService {
 
   async completeNote(id: string, isCompleted: boolean): Promise<Note> {
     return this.noteModel
-      .findByIdAndUpdate(id, { isCompleted: !isCompleted }, { new: true })
+      .findByIdAndUpdate(id, { isCompleted }, { new: true })
       .exec();
   }
 

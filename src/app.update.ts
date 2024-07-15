@@ -21,24 +21,30 @@ export class AppUpdate {
   ) {}
 
   @Start()
-  startCommand(@Ctx() ctx: Context) {
+  async startCommand(@Ctx() ctx: Context) {
     ctx.reply('Hello!👋\nWhat do you want to do?', actionButtons());
   }
 
+  @Action('create_note')
+  async createNote(@Ctx() ctx: Context) {
+    ctx.session.type = 'create';
+    ctx.reply('Describe your note');
+  }
+
   @Action('list_notes')
-  listNotes(ctx: Context) {
-    const notes = this.appService.findAll();
+  async listNotes(@Ctx() ctx: Context) {
+    const notes = await this.appService.findAll();
     ctx.reply(showList(notes));
   }
 
   @Action('complete_note')
-  completeNote(ctx: Context) {
+  async completeNote(@Ctx() ctx: Context) {
     ctx.session.type = 'complete';
     ctx.reply('Please send the ID of the note:');
   }
 
   @Action('edit_note')
-  editNote(ctx: Context) {
+  async editNote(@Ctx() ctx: Context) {
     ctx.session.type = 'edit';
     ctx.deleteMessage();
     ctx.replyWithHTML(
@@ -47,51 +53,58 @@ export class AppUpdate {
   }
 
   @Action('delete_note')
-  deleteNote(ctx: Context) {
+  async deleteNote(@Ctx() ctx: Context) {
     ctx.session.type = 'delete';
     ctx.reply('Please send the ID of the note:');
   }
 
   @On('text')
-  getMessage(@Message('text') message: string, @Ctx() ctx: Context) {
+  async getMessage(@Message('text') message: string, @Ctx() ctx: Context) {
     if (!ctx.session.type) return;
 
+    if (ctx.session.type === 'create') {
+      await this.appService.createNote(message);
+      const notes = await this.appService.findAll();
+      ctx.reply(showList(notes));
+    }
+
     if (ctx.session.type === 'complete') {
-      const response = this.appService.completeNote(message);
-
-      const note = notes.find((n) => n.id === message);
-
+      const note = await this.appService.findOne(message);
       if (!note) {
         ctx.deleteMessage();
         ctx.reply('Note with this ID was not found');
+        return;
       }
-
-      note.isCompleted = !note.isCompleted;
+      await this.appService.completeNote(message, !note.isCompleted);
+      const notes = await this.appService.findAll();
       ctx.reply(showList(notes));
     }
 
     if (ctx.session.type === 'edit') {
       const [noteId, noteText] = message.split(' | ');
-      const note = notes.find((n) => n.id === noteId);
-
+      const note = await this.appService.findOne(noteId);
       if (!note) {
         ctx.deleteMessage();
         ctx.reply('Note with this ID was not found');
+        return;
       }
-
-      note.text = noteText;
+      await this.appService.updateNote(noteId, noteText);
+      const notes = await this.appService.findAll();
       ctx.reply(showList(notes));
     }
 
     if (ctx.session.type === 'delete') {
-      const note = notes.find((n) => n.id === message);
-
+      const note = await this.appService.findOne(message);
       if (!note) {
         ctx.deleteMessage();
         ctx.reply('Note with this ID was not found');
+        return;
       }
-
-      ctx.reply(showList(notes.filter((n) => n.id !== message)));
+      await this.appService.deleteNote(message);
+      const notes = await this.appService.findAll();
+      ctx.reply(showList(notes));
     }
+
+    ctx.session.type = null;
   }
 }
